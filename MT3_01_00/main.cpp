@@ -14,6 +14,11 @@ struct Matrix4x4 {
     float m[4][4];
 };
 
+struct Spheres {
+    Vector3 center;
+    float radius;
+};
+
 // ---------- 数学関数 ----------
 Vector3 Cross(const Vector3& v1, const Vector3& v2) {
     return {
@@ -113,6 +118,42 @@ Vector3 Transform(const Vector3& v, const Matrix4x4& m) {
         result.z /= w;
     }
     return result;
+}
+
+//グリッド描画
+void DrawGrid(const Matrix4x4& viewProjectMatrix, const Matrix4x4& viewprojectMatrix) {
+    const float kGridHalfWidth = 2.0f;                                      //Gridの半分の幅
+    const uint32_t kSubdivision = 10;                                       //分割数
+    const float kGridEvery = (kGridHalfWidth * 2.0f) / float(kSubdivision); //一つ分の長さ
+
+    //奥から手前への線を順々に引いていく
+    for (uint32_t xIndex = 0; xIndex <= kSubdivision; ++xIndex) {
+        //  上の情報を使ってワールド座標系上の始点と終点を求める
+        float offset = -kGridHalfWidth + xIndex * kGridEvery;
+         
+        //  スクリーン座標系まで変換をかける
+        // Z方向に平行（x固定）
+        Vector3 startX = { offset, 0.0f, -kGridHalfWidth };
+        Vector3 endX = { offset, 0.0f, +kGridHalfWidth };
+
+        //X方向に平行 (Z固定)
+        Vector3 startZ = { -kGridHalfWidth, 0.0f, offset };
+        Vector3 endZ = { +kGridHalfWidth, 0.0f, offset };
+
+        Vector3 screenStartX = Transform(Transform(startX, viewProjectionMatrix), viewportMatrix);
+        Vector3 screenEndX = Transform(Transform(endX, viewProjectionMatrix), viewportMatrix);
+        Vector3 screenStartZ = Transform(Transform(startZ, viewProjectionMatrix), viewportMatrix);
+        Vector3 screenEndZ = Transform(Transform(endZ, viewProjectionMatrix), viewportMatrix);
+
+        
+        //  変換した座標を使って表示。 色は薄い灰色（0xAAAAAAFF）、原点は黒ぐらいが良いが、何でもいい
+        Novice::DrawLine();
+    }
+
+    //左から右も同じように順々に引いていく
+    for (uint32_t zIndex = 0; zIndex <= kSubdivision; ++zIndex) {
+        //奥から手前が左右に変わるだけ
+    }
 }
 
 // ---------- WinMain ----------
