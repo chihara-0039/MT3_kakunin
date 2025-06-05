@@ -1,10 +1,8 @@
 #include <Novice.h>
 #include <cmath>
+#include <imgui.h>
 
 const char kWindowTitle[] = "LE2C_21_チハラ_シゴウ";
-
-const int kWindowWidth = 1280;
-const int kWindowHeight = 720;
 
 struct Vector3 {
     float x, y, z;
@@ -19,124 +17,33 @@ struct Spheres {
     float radius;
 };
 
-// ---------- 数学関数 ----------
-Vector3 Cross(const Vector3& v1, const Vector3& v2) {
-    return {
-        v1.y * v2.z - v1.z * v2.y,
-        v1.z * v2.x - v1.x * v2.z,
-        v1.x * v2.y - v1.y * v2.x
-    };
-}
 
-Matrix4x4 MakeIdentityMatrix() {
-    Matrix4x4 mat = {};
-    mat.m[0][0] = mat.m[1][1] = mat.m[2][2] = mat.m[3][3] = 1.0f;
-    return mat;
-}
-
-Matrix4x4 MakeRotateYMatrix(float angle) {
-    Matrix4x4 mat = MakeIdentityMatrix();
-    mat.m[0][0] = cosf(angle);
-    mat.m[0][2] = sinf(angle);
-    mat.m[2][0] = -sinf(angle);
-    mat.m[2][2] = cosf(angle);
-    return mat;
-}
-
-Matrix4x4 MakeTranslateMatrix(const Vector3& t) {
-    Matrix4x4 mat = MakeIdentityMatrix();
-    mat.m[3][0] = t.x;
-    mat.m[3][1] = t.y;
-    mat.m[3][2] = t.z;
-    return mat;
-}
-
-Matrix4x4 Multiply(const Matrix4x4& m1, const Matrix4x4& m2) {
-    Matrix4x4 result = {};
-    for (int row = 0; row < 4; ++row) {
-        for (int col = 0; col < 4; ++col) {
-            for (int k = 0; k < 4; ++k) {
-                result.m[row][col] += m1.m[row][k] * m2.m[k][col];
-            }
-        }
-    }
-    return result;
-}
-
-Matrix4x4 MakeAffineMatrix(const Vector3& scale, const Vector3& rotate, const Vector3& translate) {
-    Matrix4x4 s = MakeIdentityMatrix();
-    s.m[0][0] = scale.x;
-    s.m[1][1] = scale.y;
-    s.m[2][2] = scale.z;
-
-    Matrix4x4 ry = MakeRotateYMatrix(rotate.y);
-    Matrix4x4 t = MakeTranslateMatrix(translate);
-
-    return Multiply(s, Multiply(ry, t));
-}
-
-Matrix4x4 Inverse(const Matrix4x4& m) {
-    Matrix4x4 result = MakeIdentityMatrix();
-    result.m[3][0] = -m.m[3][0];
-    result.m[3][1] = -m.m[3][1];
-    result.m[3][2] = -m.m[3][2];
-    return result;
-}
-
-Matrix4x4 MakePerspectiveFovMatrix(float fovY, float aspectRatio, float nearZ, float farZ) {
-    Matrix4x4 mat = {};
-    float f = 1.0f / tanf(fovY / 2.0f);
-    mat.m[0][0] = f / aspectRatio;
-    mat.m[1][1] = f;
-    mat.m[2][2] = farZ / (farZ - nearZ);
-    mat.m[2][3] = 1.0f;
-    mat.m[3][2] = -nearZ * farZ / (farZ - nearZ);
-    return mat;
-}
-
-Matrix4x4 MakeViewportMatrix(float left, float top, float width, float height, float minDepth, float maxDepth) {
-    Matrix4x4 mat = {};
-    mat.m[0][0] = width / 2.0f;
-    mat.m[1][1] = -height / 2.0f;
-    mat.m[2][2] = maxDepth - minDepth;
-    mat.m[3][0] = left + width / 2.0f;
-    mat.m[3][1] = top + height / 2.0f;
-    mat.m[3][2] = minDepth;
-    mat.m[3][3] = 1.0f;
-    return mat;
-}
-
+// ベクトルを変換
 Vector3 Transform(const Vector3& v, const Matrix4x4& m) {
-    Vector3 result;
-    result.x = v.x * m.m[0][0] + v.y * m.m[1][0] + v.z * m.m[2][0] + m.m[3][0];
-    result.y = v.x * m.m[0][1] + v.y * m.m[1][1] + v.z * m.m[2][1] + m.m[3][1];
-    result.z = v.x * m.m[0][2] + v.y * m.m[1][2] + v.z * m.m[2][2] + m.m[3][2];
+    float x = v.x * m.m[0][0] + v.y * m.m[1][0] + v.z * m.m[2][0] + m.m[3][0];
+    float y = v.x * m.m[0][1] + v.y * m.m[1][1] + v.z * m.m[2][1] + m.m[3][1];
+    float z = v.x * m.m[0][2] + v.y * m.m[1][2] + v.z * m.m[2][2] + m.m[3][2];
     float w = v.x * m.m[0][3] + v.y * m.m[1][3] + v.z * m.m[2][3] + m.m[3][3];
     if (w != 0.0f) {
-        result.x /= w;
-        result.y /= w;
-        result.z /= w;
+        x /= w; y /= w; z /= w;
     }
-    return result;
+    return { x, y, z };
 }
 
-//グリッド描画
-void DrawGrid(const Matrix4x4& viewProjectMatrix, const Matrix4x4& viewprojectMatrix) {
-    const float kGridHalfWidth = 2.0f;                                      //Gridの半分の幅
-    const uint32_t kSubdivision = 10;                                       //分割数
-    const float kGridEvery = (kGridHalfWidth * 2.0f) / float(kSubdivision); //一つ分の長さ
+// グリッド描画
+void DrawGrid(const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix) {
+    const float kGridHalfWidth = 2.0f;
+    const uint32_t kSubdivision = 10;
+    const float kGridEvery = (kGridHalfWidth * 2.0f) / float(kSubdivision);
 
-    //奥から手前への線を順々に引いていく
-    for (uint32_t xIndex = 0; xIndex <= kSubdivision; ++xIndex) {
-        //  上の情報を使ってワールド座標系上の始点と終点を求める
-        float offset = -kGridHalfWidth + xIndex * kGridEvery;
-         
-        //  スクリーン座標系まで変換をかける
-        // Z方向に平行（x固定）
+    for (uint32_t i = 0; i <= kSubdivision; ++i) {
+        float offset = -kGridHalfWidth + i * kGridEvery;
+
+        // Z方向に平行（X固定）
         Vector3 startX = { offset, 0.0f, -kGridHalfWidth };
         Vector3 endX = { offset, 0.0f, +kGridHalfWidth };
 
-        //X方向に平行 (Z固定)
+        // X方向に平行（Z固定）
         Vector3 startZ = { -kGridHalfWidth, 0.0f, offset };
         Vector3 endZ = { +kGridHalfWidth, 0.0f, offset };
 
@@ -145,78 +52,233 @@ void DrawGrid(const Matrix4x4& viewProjectMatrix, const Matrix4x4& viewprojectMa
         Vector3 screenStartZ = Transform(Transform(startZ, viewProjectionMatrix), viewportMatrix);
         Vector3 screenEndZ = Transform(Transform(endZ, viewProjectionMatrix), viewportMatrix);
 
-        
-        //  変換した座標を使って表示。 色は薄い灰色（0xAAAAAAFF）、原点は黒ぐらいが良いが、何でもいい
-        Novice::DrawLine();
-    }
+        // 線を描画
+        int colorX = (offset == 0.0f) ? 0x000000FF : 0xAAAAAAFF;  // Z方向に平行な線
+        int colorZ = (offset == 0.0f) ? 0x000000FF : 0xAAAAAAFF;  // X方向に平行な線
 
-    //左から右も同じように順々に引いていく
-    for (uint32_t zIndex = 0; zIndex <= kSubdivision; ++zIndex) {
-        //奥から手前が左右に変わるだけ
+        Novice::DrawLine(int(screenStartX.x), int(screenStartX.y), int(screenEndX.x), int(screenEndX.y), colorX);
+        Novice::DrawLine(int(screenStartZ.x), int(screenStartZ.y), int(screenEndZ.x), int(screenEndZ.y), colorZ);
+
     }
 }
 
-// ---------- WinMain ----------
+
+// 単位ベクトルの正規化
+Vector3 Normalize(const Vector3& v) {
+    float length = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+    return { v.x / length, v.y / length, v.z / length };
+}
+
+// 外積
+Vector3 Cross(const Vector3& a, const Vector3& b) {
+    return {
+        a.y * b.z - a.z * b.y,
+        a.z * b.x - a.x * b.z,
+        a.x * b.y - a.y * b.x
+    };
+}
+
+Matrix4x4 Multiply(const Matrix4x4& m1, const Matrix4x4& m2) {
+    Matrix4x4 result = {};
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            result.m[i][j] = 0.0f;
+            for (int k = 0; k < 4; ++k) {
+                result.m[i][j] += m1.m[i][k] * m2.m[k][j];
+            }
+        }
+    }
+    return result;
+}
+
+
+Matrix4x4 MakeRotateMatrix(const Vector3& rotate) {
+    float cosX = cosf(rotate.x), sinX = sinf(rotate.x);
+    float cosY = cosf(rotate.y), sinY = sinf(rotate.y);
+    float cosZ = cosf(rotate.z), sinZ = sinf(rotate.z);
+
+    Matrix4x4 rotX = {
+        1, 0,     0,    0,
+        0, cosX,  sinX, 0,
+        0, -sinX, cosX, 0,
+        0, 0,     0,    1
+    };
+    Matrix4x4 rotY = {
+        cosY, 0, -sinY, 0,
+        0,    1, 0,     0,
+        sinY, 0, cosY,  0,
+        0,    0, 0,     1
+    };
+    Matrix4x4 rotZ = {
+        cosZ, sinZ, 0, 0,
+        -sinZ, cosZ, 0, 0,
+        0,     0,    1, 0,
+        0,     0,    0, 1
+    };
+
+    // rotZ * rotX * rotY
+    Matrix4x4 result = Multiply(Multiply(rotZ, rotX), rotY);
+    return result;
+}
+
+
+// ビュー行列作成（LookAt方式）
+Matrix4x4 MakeViewMatrix(const Vector3& eye, const Vector3& target, const Vector3& up) {
+    Vector3 zAxis = Normalize({ target.x - eye.x, target.y - eye.y, target.z - eye.z });
+    Vector3 xAxis = Normalize(Cross(up, zAxis));
+    Vector3 yAxis = Cross(zAxis, xAxis);
+
+    Matrix4x4 viewMatrix = {};
+    viewMatrix.m[0][0] = xAxis.x;
+    viewMatrix.m[1][0] = xAxis.y;
+    viewMatrix.m[2][0] = xAxis.z;
+    viewMatrix.m[3][0] = -(eye.x * xAxis.x + eye.y * xAxis.y + eye.z * xAxis.z);
+
+    viewMatrix.m[0][1] = yAxis.x;
+    viewMatrix.m[1][1] = yAxis.y;
+    viewMatrix.m[2][1] = yAxis.z;
+    viewMatrix.m[3][1] = -(eye.x * yAxis.x + eye.y * yAxis.y + eye.z * yAxis.z);
+
+    viewMatrix.m[0][2] = zAxis.x;
+    viewMatrix.m[1][2] = zAxis.y;
+    viewMatrix.m[2][2] = zAxis.z;
+    viewMatrix.m[3][2] = -(eye.x * zAxis.x + eye.y * zAxis.y + eye.z * zAxis.z);
+
+    viewMatrix.m[0][3] = 0;
+    viewMatrix.m[1][3] = 0;
+    viewMatrix.m[2][3] = 0;
+    viewMatrix.m[3][3] = 1;
+
+    return viewMatrix;
+}
+
+// 透視射影行列を作成
+Matrix4x4 MakePerspectiveMatrix(float fovY, float aspect, float nearZ, float farZ) {
+    float f = 1.0f / tanf(fovY / 2.0f);
+    Matrix4x4 m{};
+    m.m[0][0] = f / aspect;
+    m.m[1][1] = f;
+    m.m[2][2] = farZ / (farZ - nearZ);
+    m.m[3][2] = -nearZ * farZ / (farZ - nearZ);
+    m.m[2][3] = 1.0f;
+    m.m[3][3] = 0.0f;
+    return m;
+}
+
+void DrawSphere(const Spheres& sphere, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color) {
+    const uint32_t kSubdivision = 16;
+    const float pi = 3.1415926535f;
+    const float kLatEvery = pi / kSubdivision;
+    const float kLonEvery = 2 * pi / kSubdivision;
+
+    for (uint32_t latIndex = 0; latIndex < kSubdivision; ++latIndex) {
+        float lat = -pi / 2.0f + kLatEvery * latIndex;
+        float nextLat = lat + kLatEvery;
+
+        for (uint32_t lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
+            float lon = lonIndex * kLonEvery;
+            float nextLon = lon + kLonEvery;
+
+            Vector3 a = {
+                sphere.center.x + sphere.radius * cosf(lat) * cosf(lon),
+                sphere.center.y + sphere.radius * sinf(lat),
+                sphere.center.z + sphere.radius * cosf(lat) * sinf(lon)
+            };
+            Vector3 b = {
+                sphere.center.x + sphere.radius * cosf(nextLat) * cosf(lon),
+                sphere.center.y + sphere.radius * sinf(nextLat),
+                sphere.center.z + sphere.radius * cosf(nextLat) * sinf(lon)
+            };
+            Vector3 c = {
+                sphere.center.x + sphere.radius * cosf(lat) * cosf(nextLon),
+                sphere.center.y + sphere.radius * sinf(lat),
+                sphere.center.z + sphere.radius * cosf(lat) * sinf(nextLon)
+            };
+
+            Vector3 screenA = Transform(Transform(a, viewProjectionMatrix), viewportMatrix);
+            Vector3 screenB = Transform(Transform(b, viewProjectionMatrix), viewportMatrix);
+            Vector3 screenC = Transform(Transform(c, viewProjectionMatrix), viewportMatrix);
+
+            Novice::DrawLine(int(screenA.x), int(screenA.y), int(screenB.x), int(screenB.y), color);
+            Novice::DrawLine(int(screenA.x), int(screenA.y), int(screenC.x), int(screenC.y), color);
+        }
+    }
+}
+
+Vector3 cameraTranslate = { 0.0f, 2.0f, -7.0f };
+Vector3 cameraRotate = { 0.0f, 0.0f, 0.0f };
+
+// 球
+Spheres sphereA = { {0.0f, 1.0f, 0.0f}, 1.0f };
+
+
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
-    Novice::Initialize(kWindowTitle, kWindowWidth, kWindowHeight);
+    Novice::Initialize(kWindowTitle, 1280, 720);
     char keys[256] = { 0 };
     char preKeys[256] = { 0 };
 
-    // 三角形頂点
-    Vector3 kLocalVertices[3] = {
-        {0.0f, 0.5f, 0.0f},
-        {0.5f, -0.5f, 0.0f},
-        {-0.5f, -0.5f, 0.0f}
-    };
-
-    Vector3 translate{ 0.0f, 0.0f, 0.0f };
-    float angleY = 0.0f;
-
     while (Novice::ProcessMessage() == 0) {
         Novice::BeginFrame();
+
+        // ImGui 操作パネル
+        ImGui::Begin("Window");
+        ImGui::DragFloat3("CameraTranslate", &cameraTranslate.x, 0.01f);
+        ImGui::DragFloat3("CameraRotate", &cameraRotate.x, 0.01f);
+        ImGui::DragFloat3("SphereCenter", &sphereA.center.x, 0.01f);
+        ImGui::DragFloat("SphereA Radius", &sphereA.radius, 0.01f);
+
+        ImGui::End();
+
+
         memcpy(preKeys, keys, 256);
         Novice::GetHitKeyStateAll(keys);
 
-        // 入力
-        if (keys[DIK_W]) translate.z -= 0.1f;
-        if (keys[DIK_S]) translate.z += 0.1f;
-        if (keys[DIK_A]) translate.x -= 0.1f;
-        if (keys[DIK_D]) translate.x += 0.1f;
 
-        // 自動回転
-        angleY += 0.03f;
 
-        Vector3 rotate{ 0.0f, angleY, 0.0f };
+        Matrix4x4 rotateMatrix = MakeRotateMatrix(cameraRotate);
+        Vector3 forward = Transform({ 0, 0, 1 }, rotateMatrix);
+        Vector3 target = {
+            cameraTranslate.x + forward.x,
+            cameraTranslate.y + forward.y,
+            cameraTranslate.z + forward.z
+        };
+        Vector3 up = Transform({ 0, 1, 0 }, rotateMatrix);
 
-        // 行列
-        Matrix4x4 worldMatrix = MakeAffineMatrix({ 1.0f, 1.0f, 1.0f }, rotate, translate);
-        Vector3 cameraPosition{ 0.0f, 0.0f, -3.0f };
-        Matrix4x4 cameraMatrix = MakeAffineMatrix({ 1.0f, 1.0f, 1.0f }, {}, cameraPosition);
-        Matrix4x4 viewMatrix = Inverse(cameraMatrix);
-        Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kWindowWidth) / float(kWindowHeight), 0.1f, 100.0f);
-        Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
-        Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, float(kWindowWidth), float(kWindowHeight), 0.0f, 1.0f);
+        Matrix4x4 viewMatrix = MakeViewMatrix(cameraTranslate, target, up);
 
-        // 描画処理
-        Vector3 screenVertices[3];
-        for (int i = 0; i < 3; ++i) {
-            Vector3 ndcVertex = Transform(kLocalVertices[i], worldViewProjectionMatrix);
-            screenVertices[i] = Transform(ndcVertex, viewportMatrix);
+
+        // パース付き射影行列
+        float fovY = 0.5f;
+        float aspect = 1280.0f / 720.0f;
+        float nearZ = 0.1f;
+        float farZ = 100.0f;
+        Matrix4x4 projectionMatrix = MakePerspectiveMatrix(fovY, aspect, nearZ, farZ);
+
+        // viewProjectionMatrix = view × projection
+        Matrix4x4 viewProjectionMatrix = {};
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                viewProjectionMatrix.m[i][j] = 0.0f;
+                for (int k = 0; k < 4; ++k) {
+                    viewProjectionMatrix.m[i][j] += viewMatrix.m[i][k] * projectionMatrix.m[k][j];
+                }
+            }
         }
 
-        Novice::DrawTriangle(
-            int(screenVertices[0].x), int(screenVertices[0].y),
-            int(screenVertices[1].x), int(screenVertices[1].y),
-            int(screenVertices[2].x), int(screenVertices[2].y),
-            RED, kFillModeSolid
-        );
+        // ビューポート行列（画面中心に変換）
+        Matrix4x4 viewportMatrix = {
+            640.0f, 0,       0, 0,
+            0,    -360.0f,   0, 0,
+            0,       0,      1, 0,
+            640.0f, 360.0f,  0, 1
+        };
 
-        // クロス積の表示
-        Vector3 v1{ 1.2f, -3.9f, 2.5f };
-        Vector3 v2{ 2.8f, 8.4f, -1.3f };
-        Vector3 cross = Cross(v1, v2);
-        Novice::ScreenPrintf(0, 0, "Cross: x=%.2f y=%.2f z=%.2f", cross.x, cross.y, cross.z);
 
+        // 描画
+        DrawSphere(sphereA, viewProjectionMatrix, viewportMatrix, 0x000000FF);
+        DrawGrid(viewProjectionMatrix, viewportMatrix);
+
+        /// ↑描画処理ここまで
         Novice::EndFrame();
 
         if (preKeys[DIK_ESCAPE] == 0 && keys[DIK_ESCAPE] != 0) {
