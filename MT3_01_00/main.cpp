@@ -23,6 +23,22 @@ struct Segment {
 	Vector3 diff;    //!< 終点への差分ベクトル
 };
 
+struct Triangle {
+	Vector3 vertices[3];
+};
+
+float Dot(const Vector3& a, const Vector3& b) {
+	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+Vector3 Cross(const Vector3& a, const Vector3& b) {
+	return {
+		a.y * b.z - a.z * b.y,
+		a.z * b.x - a.x * b.z,
+		a.x * b.y - a.y * b.x
+	};
+}
+
 // 衝突判定関数（true：交差する）
 bool IsCollision(const Segment& segment, const Plane& plane) {
 	float dotA = segment.origin.x * plane.normal.x + segment.origin.y * plane.normal.y + segment.origin.z * plane.normal.z - plane.distance;
@@ -86,15 +102,6 @@ void DrawGrid(const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMa
 Vector3 Normalize(const Vector3& v) {
 	float length = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 	return { v.x / length, v.y / length, v.z / length };
-}
-
-// 外積
-Vector3 Cross(const Vector3& a, const Vector3& b) {
-	return {
-		a.y * b.z - a.z * b.y,
-		a.z * b.x - a.x * b.z,
-		a.x * b.y - a.y * b.x
-	};
 }
 
 Matrix4x4 Multiply(const Matrix4x4& m1, const Matrix4x4& m2) {
@@ -257,6 +264,91 @@ void DrawSegment(const Segment& segment, const Matrix4x4& viewProjectionMatrix, 
 	Novice::DrawLine((int)start.x, (int)start.y, (int)endTransformed.x, (int)endTransformed.y, color);
 }
 
+void DrawTriangle(const Triangle& triangle, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color) {
+	Vector3 screenV[3];
+	for (int i = 0; i < 3; ++i) {
+		screenV[i] = Transform(Transform(triangle.vertices[i], viewProjectionMatrix), viewportMatrix);
+	}
+	Novice::DrawTriangle(
+		(int)screenV[0].x, (int)screenV[0].y,
+		(int)screenV[1].x, (int)screenV[1].y,
+		(int)screenV[2].x, (int)screenV[2].y,
+		color, kFillModeWireFrame
+	);
+}
+
+bool IsCollision(const Triangle& triangle, const Segment& segment) {
+	// 三角形の法線を求める
+	Vector3 v01 = {
+		triangle.vertices[1].x - triangle.vertices[0].x,
+		triangle.vertices[1].y - triangle.vertices[0].y,
+		triangle.vertices[1].z - triangle.vertices[0].z
+	};
+	Vector3 v02 = {
+		triangle.vertices[2].x - triangle.vertices[0].x,
+		triangle.vertices[2].y - triangle.vertices[0].y,
+		triangle.vertices[2].z - triangle.vertices[0].z
+	};
+
+	Vector3 normal = Normalize(Cross(v01, v02));
+
+	// 三角形を含む平面
+	float d = triangle.vertices[0].x * normal.x + triangle.vertices[0].y * normal.y + triangle.vertices[0].z * normal.z;
+
+	// 始点と終点
+	Vector3 p0 = segment.origin;
+	Vector3 p1 = {
+		segment.origin.x + segment.diff.x,
+		segment.origin.y + segment.diff.y,
+		segment.origin.z + segment.diff.z
+	};
+
+	// 始点終点の平面からの距離
+	float dot0 = p0.x * normal.x + p0.y * normal.y + p0.z * normal.z - d;
+	float dot1 = p1.x * normal.x + p1.y * normal.y + p1.z * normal.z - d;
+
+	if (dot0 * dot1 > 0.0f) return false; // 平面と交差していない
+
+	// 衝突点を線形補間で求める
+	float t = dot0 / (dot0 - dot1);
+	Vector3 p = {
+		p0.x + (p1.x - p0.x) * t,
+		p0.y + (p1.y - p0.y) * t,
+		p0.z + (p1.z - p0.z) * t,
+	};
+
+	// バリツェントリック法で三角形内にあるかをチェック
+	Vector3 v0 = {
+		triangle.vertices[1].x - triangle.vertices[0].x,
+		triangle.vertices[1].y - triangle.vertices[0].y,
+		triangle.vertices[1].z - triangle.vertices[0].z,
+	};
+	Vector3 v1 = {
+		triangle.vertices[2].x - triangle.vertices[0].x,
+		triangle.vertices[2].y - triangle.vertices[0].y,
+		triangle.vertices[2].z - triangle.vertices[0].z,
+	};
+	Vector3 v2 = {
+		p.x - triangle.vertices[0].x,
+		p.y - triangle.vertices[0].y,
+		p.z - triangle.vertices[0].z,
+	};
+
+	float d00 = Dot(v0, v0);
+	float d01 = Dot(v0, v1);
+	float d11 = Dot(v1, v1);
+	float d20 = Dot(v2, v0);
+	float d21 = Dot(v2, v1);
+
+	float denom = d00 * d11 - d01 * d01;
+	if (denom == 0.0f) return false;
+
+	float u = (d11 * d20 - d01 * d21) / denom;
+	float v = (d00 * d21 - d01 * d20) / denom;
+
+	return (u >= 0.0f && v >= 0.0f && u + v <= 1.0f);
+}
+
 
 
 // Windowsアプリでのエントリーポイント(main関数)
@@ -273,6 +365,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	static Segment segment = { {0.0f, 1.0f, -1.0f}, {0.0f, -2.0f, 2.0f} };
 
 
+
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
 		// フレームの開始
@@ -285,25 +378,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///
 		/// ↓更新処理ここから
 		///
-
-		///
-		/// ↑更新処理ここまで
-		///
-
-		///
-		/// ↓描画処理ここから
-		///
-				// ImGui 操作パネル
-		ImGui::Begin("Window");
-		ImGui::DragFloat3("CameraTranslate", &cameraTranslate.x, 0.01f);
-		ImGui::DragFloat3("CameraRotate", &cameraRotate.x, 0.01f);
-		ImGui::DragFloat3("Plane.Normal", &plane.normal.x, 0.01f);
-		ImGui::DragFloat("Plane.Distance", &plane.distance, 0.01f);
-		ImGui::DragFloat3("Segment Origin", &segment.origin.x, 0.01f);
-		ImGui::DragFloat3("Segment Diff", &segment.diff.x, 0.01f);
-
-
-		ImGui::End();
 
 		plane.normal = Normalize(plane.normal);
 		Matrix4x4 rotateMatrix = MakeRotateMatrix(cameraRotate);
@@ -343,11 +417,42 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			640.0f, 360.0f,  0, 1
 		};
 
+		static Triangle triangle = {
+			{{-1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}}
+		};
+
+
+		///
+		/// ↑更新処理ここまで
+		///
+
+		///
+		/// ↓描画処理ここから
+		///
+
+		// ImGui 操作パネル
+		ImGui::Begin("Window");
+		ImGui::DragFloat3("CameraTranslate", &cameraTranslate.x, 0.01f);
+		ImGui::DragFloat3("CameraRotate", &cameraRotate.x, 0.01f);
+		ImGui::DragFloat3("Plane.Normal", &plane.normal.x, 0.01f);
+		ImGui::DragFloat("Plane.Distance", &plane.distance, 0.01f);
+		ImGui::DragFloat3("Segment Origin", &segment.origin.x, 0.01f);
+		ImGui::DragFloat3("Segment Diff", &segment.diff.x, 0.01f);
+		ImGui::DragFloat3("Triangle V0", &triangle.vertices[0].x, 0.01f);
+		ImGui::DragFloat3("Triangle V1", &triangle.vertices[1].x, 0.01f);
+		ImGui::DragFloat3("Triangle V2", &triangle.vertices[2].x, 0.01f);
+
+
+		ImGui::End();
 
 		uint32_t segColor = IsCollision(segment, plane) ? 0xFF0000FF : 0xFFFFFFFF; // 赤 or 白
 		DrawSegment(segment, viewProjectionMatrix, viewportMatrix, segColor);
 		DrawPlane(plane, viewProjectionMatrix, viewportMatrix, WHITE);
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
+		bool hit = IsCollision(triangle, segment);
+		DrawTriangle(triangle, viewProjectionMatrix, viewportMatrix, 0x00FF00FF); // 緑の三角形
+		DrawSegment(segment, viewProjectionMatrix, viewportMatrix, hit ? 0xFF0000FF : 0xFFFFFFFF); // 赤 or 白
+
 		///
 		/// ↑描画処理ここまで
 		///
