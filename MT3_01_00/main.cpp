@@ -207,6 +207,19 @@ void DrawSphere(const Spheres& sphere, const Matrix4x4& viewProjectionMatrix, co
     }
 }
 
+// 球と球の衝突判定
+bool IsColliding(const Spheres& a, const Spheres& b) {
+    Vector3 diff = {
+        a.center.x - b.center.x,
+        a.center.y - b.center.y,
+        a.center.z - b.center.z
+    };
+    float distanceSquared = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
+    float radiusSum = a.radius + b.radius;
+    return distanceSquared <= radiusSum * radiusSum;
+}
+
+
 Vector3 cameraTranslate = { 0.0f, 2.0f, -7.0f };
 Vector3 cameraRotate = { 0.0f, 0.0f, 0.0f };
 // 球を2つ定義
@@ -318,9 +331,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
             sphereA.center.y - sphereB.center.y,
             sphereA.center.z - sphereB.center.z
         };
-        float distanceSquared = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
-        float radiusSum = sphereA.radius + sphereB.radius;
-        bool isColliding = distanceSquared <= radiusSum * radiusSum;
+        //float distanceSquared = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
+        //float radiusSum = sphereA.radius + sphereB.radius;
+        // 2球間の当たり判定（距離比較）
+        bool isColliding = IsColliding(sphereA, sphereB);
+
 
         // 描画（Aが重なっているときだけ赤、それ以外は黒）
         DrawSphere(sphereA, viewProjectionMatrix, viewportMatrix, isColliding ? 0xFF0000FF : WHITE);
