@@ -18,6 +18,16 @@ struct Spheres {
     float radius;
 };
 
+struct Segment{
+	Vector3 start;
+	Vector3 end;
+};
+
+struct AABB {
+    Vector3 min;
+    Vector3 max;
+};
+
 
 // ベクトルを変換
 Vector3 Transform(const Vector3& v, const Matrix4x4& m) {
@@ -208,16 +218,23 @@ void DrawSphere(const Spheres& sphere, const Matrix4x4& viewProjectionMatrix, co
     }
 }
 
+void DrawSegment(const Segment& seg, const Matrix4x4& viewProjection, const Matrix4x4& viewport, uint32_t color) {
+    Vector3 screenStart = Transform(Transform(seg.start, viewProjection), viewport);
+    Vector3 screenEnd = Transform(Transform(seg.end, viewProjection), viewport);
+    Novice::DrawLine((int)screenStart.x, (int)screenStart.y, (int)screenEnd.x, (int)screenEnd.y, color);
+}
+
+
 Vector3 cameraTranslate = { 0.0f, 2.0f, -7.0f };
 Vector3 cameraRotate = { 0.0f, 0.0f, 0.0f };
 // 球
 Spheres sphereA = { {0.0f, 1.0f, 0.0f}, 1.0f };
 
+Segment segment = { {-1.0f, 1.0f, -1.0f}, {1.0f, 1.0f, 1.0f} };
 
-struct AABB {
-    Vector3 min;
-    Vector3 max;
-};
+
+
+
 
 void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color) {
     Vector3 vertices[8] = {
@@ -262,6 +279,38 @@ bool IsCollision(const Spheres& sphere, const AABB& aabb) {
     return (dx * dx + dy * dy + dz * dz) <= (sphere.radius * sphere.radius);
 }
 
+// 線分とAABBの衝突判定
+bool IsIntersectAABBAndSegment(const AABB& box, const Segment& seg) {
+    Vector3 dir = {
+        seg.end.x - seg.start.x,
+        seg.end.y - seg.start.y,
+        seg.end.z - seg.start.z
+    };
+
+    float tMin = 0.0f;
+    float tMax = 1.0f;
+
+    for (int i = 0; i < 3; ++i) {
+        float start = (&seg.start.x)[i];
+        float d = (&dir.x)[i];
+        float minB = (&box.min.x)[i];
+        float maxB = (&box.max.x)[i];
+
+        if (std::abs(d) < 1e-6f) {
+            if (start < minB || start > maxB) return false;
+        } else {
+            float ood = 1.0f / d;
+            float t1 = (minB - start) * ood;
+            float t2 = (maxB - start) * ood;
+            if (t1 > t2) std::swap(t1, t2);
+            tMin = std::max<float>(tMin, t1);
+            tMax = std::min<float>(tMax, t2);
+            if (tMin > tMax) return false;
+        }
+    }
+    return true;
+}
+
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     Novice::Initialize(kWindowTitle, 1280, 720);
@@ -285,6 +334,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         ImGui::DragFloat("SphereA Radius", &sphereA.radius, 0.01f);
         ImGui::DragFloat3("AABB Min", &box.min.x, 0.01f);
         ImGui::DragFloat3("AABB Max", &box.max.x, 0.01f);
+        ImGui::DragFloat3("Segment Start", &segment.start.x, 0.01f);
+        ImGui::DragFloat3("Segment End", &segment.end.x, 0.01f);
+
 
 
         ImGui::End();
@@ -365,11 +417,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
         // 描画
-        uint32_t boxColor = IsCollision(sphereA, box) ? 0xFF0000FF : 0xFFFFFFFF;
+		bool isHit = IsIntersectAABBAndSegment(box, segment);
+        int32_t boxColor = isHit ? 0xFF0000FF : 0xFFFFFFFF;
+        uint32_t segColor = isHit ? 0xFF0000FF : 0xFFFFFFFF;
         DrawAABB(box, viewProjectionMatrix, viewportMatrix, boxColor);
 
-        DrawSphere(sphereA, viewProjectionMatrix, viewportMatrix, WHITE);
+        //DrawSphere(sphereA, viewProjectionMatrix, viewportMatrix, WHITE);
         DrawGrid(viewProjectionMatrix, viewportMatrix);
+        DrawAABB(box, viewProjectionMatrix, viewportMatrix, boxColor);
+        DrawSegment(segment, viewProjectionMatrix, viewportMatrix, segColor);
 
 
 
