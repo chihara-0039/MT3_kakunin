@@ -89,6 +89,41 @@ Vector3 Cross(const Vector3& a, const Vector3& b) {
     };
 }
 
+//線形補間関数（Leap)
+Vector3 Lerp(const Vector3& a, const Vector3& b, float t) {
+    return{
+        a.x + (b.x - a.x) * t,
+        a.y + (b.y - a.y) * t,
+        a.z + (b.z - a.z) * t
+    };
+}
+
+//2次ベジェ曲線関数
+Vector3 QuadraticBezier(const Vector3& p0, const Vector3& p1, const Vector3& p2, float t) {
+    Vector3 a = Lerp(p0, p1, t);
+    Vector3 b = Lerp(p1, p2, t);
+    return Lerp(a, b, t);
+}
+
+//ベジェ曲線の描画関数
+void DrawBezierCurve(const Vector3 controlPoints[3], const Matrix4x4& viewProjection, const Matrix4x4& viewport, uint32_t color) {
+    const int kSegments = 100; // 分割数
+    for (int i = 0; i < kSegments; ++i) {
+		float t0 = static_cast<float>(i) / kSegments;
+		float t1 = static_cast<float>(i + 1) / kSegments;
+
+		Vector3 p0 = QuadraticBezier(controlPoints[0], controlPoints[1], controlPoints[2], t0);
+		Vector3 p1 = QuadraticBezier(controlPoints[0], controlPoints[1], controlPoints[2], t1);
+		// ビュー変換とビューポート変換を適用
+		Vector3 screenP0 = Transform(Transform(p0, viewProjection), viewport);
+		Vector3 screenP1 = Transform(Transform(p1, viewProjection), viewport);
+		// 線を描画
+		Novice::DrawLine(int(screenP0.x), int(screenP0.y), int(screenP1.x), int(screenP1.y), color);
+
+    }
+}
+
+
 Matrix4x4 Multiply(const Matrix4x4& m1, const Matrix4x4& m2) {
     Matrix4x4 result = {};
     for (int i = 0; i < 4; ++i) {
