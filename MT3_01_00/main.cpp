@@ -213,6 +213,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		aabb2.min.z = (std::min)(aabb2.min.z, aabb2.max.z);
 		aabb2.max.z = (std::max)(aabb2.min.z, aabb2.max.z);
 
+		bool isHit = IsCollision(aabb1, aabb2);
 
 		// グリッド表示
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
@@ -220,9 +221,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		// 当たり判定して色決定
 		uint32_t color = IsCollision(aabb1, aabb2) ? 0xFF0000FF : 0xFFFFFFFF;
 
-		// AABB描画
-		DrawAABB(aabb1, viewProjectionMatrix, viewportMatrix, color);
-		DrawAABB(aabb2, viewProjectionMatrix, viewportMatrix, color);
+		// AABB描画（aabb1だけ色変化）
+		DrawAABB(aabb1, viewProjectionMatrix, viewportMatrix, isHit ? 0xFF0000FF : 0xFFFFFFFF);
+		DrawAABB(aabb2, viewProjectionMatrix, viewportMatrix, 0xFFFFFFFF);
 
 		Novice::EndFrame();
 
