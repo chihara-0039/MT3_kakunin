@@ -105,6 +105,8 @@ Vector3 QuadraticBezier(const Vector3& p0, const Vector3& p1, const Vector3& p2,
     return Lerp(a, b, t);
 }
 
+
+
 //ベジェ曲線の描画関数
 void DrawBezierCurve(const Vector3 controlPoints[3], const Matrix4x4& viewProjection, const Matrix4x4& viewport, uint32_t color) {
     const int kSegments = 100; // 分割数
@@ -123,6 +125,12 @@ void DrawBezierCurve(const Vector3 controlPoints[3], const Matrix4x4& viewProjec
     }
 }
 
+// グローバル変数
+Vector3 controlPoints[3] = {
+    {-0.8f, 0.58f, 1.0f},
+    {1.76f, 1.0f, -0.3f},
+    {0.94f, -0.7f, 2.3f},
+};
 
 Matrix4x4 Multiply(const Matrix4x4& m1, const Matrix4x4& m2) {
     Matrix4x4 result = {};
@@ -371,6 +379,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         ImGui::DragFloat3("AABB Max", &box.max.x, 0.01f);
         ImGui::DragFloat3("Segment Start", &segment.start.x, 0.01f);
         ImGui::DragFloat3("Segment End", &segment.end.x, 0.01f);
+        ImGui::DragFloat3("ControlPoint 0", &controlPoints[0].x, 0.01f);
+        ImGui::DragFloat3("ControlPoint 1", &controlPoints[1].x, 0.01f);
+        ImGui::DragFloat3("ControlPoint 2", &controlPoints[2].x, 0.01f);
+
 
 
 
@@ -462,6 +474,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         DrawAABB(box, viewProjectionMatrix, viewportMatrix, boxColor);
         DrawSegment(segment, viewProjectionMatrix, viewportMatrix, segColor);
 
+
+        // 描画処理内
+        for (int i = 0; i < 3; ++i) {
+            Spheres controlSphere = { controlPoints[i], 0.01f };
+            DrawSphere(controlSphere, viewProjectionMatrix, viewportMatrix, 0x000000FF); // 黒
+        }
+
+        DrawBezierCurve(controlPoints, viewProjectionMatrix, viewportMatrix, 0xFF00FFFF); // 曲線（紫）
 
 
         /// ↑描画処理ここまで
