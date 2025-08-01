@@ -13,6 +13,10 @@ struct Matrix4x4 {
 	float m[4][4];
 };
 
+
+// ============================
+// AABBの構造体
+// ============================
 struct AABB {
 	Vector3 min;
 	Vector3 max;
@@ -124,6 +128,9 @@ void DrawGrid(const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMa
 	}
 }
 
+// ========================
+// AABBの枠線を描画（12本の線で囲う）
+// ========================
 void DrawAABB(const AABB& box, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color) {
 	Vector3 corners[8] = {
 		box.min,
@@ -162,7 +169,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Vector3 cameraTranslate{ 0.0f, 1.9f, -6.49f };
 	Vector3 cameraRotate{ 0.26f, 0.0f, 0.0f };
 
-	// AABB 2つ
+// ----------------------------
+// 描画・衝突判定用AABBを2つ用意
+// ----------------------------
 	AABB aabb1{
 		.min{-0.5f, -0.5f, -0.5f},
 		.max{ 0.0f,  0.0f,  0.0f}
@@ -219,7 +228,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
 		// 当たり判定して色決定
-		uint32_t color = IsCollision(aabb1, aabb2) ? 0xFF0000FF : 0xFFFFFFFF;
+		//uint32_t color = IsCollision(aabb1, aabb2) ? 0xFF0000FF : 0xFFFFFFFF;
 
 		// AABB描画（aabb1だけ色変化）
 		DrawAABB(aabb1, viewProjectionMatrix, viewportMatrix, isHit ? 0xFF0000FF : 0xFFFFFFFF);
